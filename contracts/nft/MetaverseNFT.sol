@@ -161,9 +161,13 @@ contract MetaverseNFT is ERC721PresetMinterPauserAutoIdUpgradeable, ReentrancyGu
         // require init from template layout contract. Note: metaverse layout had to check msg.sender is owner of this metaverse
         require(msg.sender == _metaverseLayoutAddr, Errors.INV_LAYOUT);
 
-        require(zone.typeZone > 0 && zone.zoneIndex > 0);
+        require(zone.typeZone > 0 && zone.zoneIndex > 0, Errors.INV_ZONE);
         require(_metaverses[metaverseId]._metaverseOwner != address(0), Errors.N_EXIST_METAVERSE);
-        require(_metaverses[metaverseId]._metaverseZones[zone.zoneIndex].typeZone != 0);
+        if (_metaverses[metaverseId]._metaverseZones[2].typeZone == 2) {
+            require(zone.typeZone == 2 || zone.typeZone == 3, Errors.INV_ZONE);
+        } else if (_metaverses[metaverseId]._metaverseZones[2].typeZone == 3) {
+            require(zone.typeZone == 3, Errors.INV_ZONE);
+        }
 
         // set zone
         _metaverses[metaverseId]._metaverseZones[zone.zoneIndex] = zone;
