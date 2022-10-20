@@ -190,6 +190,7 @@ contract MetaverseNFT is ERC721PresetMinterPauserAutoIdUpgradeable, ReentrancyGu
         require(msg.sender == _metaverseLayoutAddr, Errors.INV_LAYOUT);
 
         // TODO verify spaceId
+        require(!_exists(spaceId), Errors.INV_SPACE_ID);
 
         if (_metaverses[metaverseId]._metaverseZones[zoneIndex].collAddr != address(0)) {
             // check nft holder

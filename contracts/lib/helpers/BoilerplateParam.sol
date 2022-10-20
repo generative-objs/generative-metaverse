@@ -10,7 +10,7 @@ library BoilerplateParam {
         // 4: bool
         // 5: address string
         uint8 _typeValue;
-
+        string _alias;
         uint256 _max;
         uint256 _min;
         uint8 _decimal;
