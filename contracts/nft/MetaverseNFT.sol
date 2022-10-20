@@ -145,6 +145,8 @@ contract MetaverseNFT is ERC721PresetMinterPauserAutoIdUpgradeable, ReentrancyGu
             // update size of metaverse
             _metaverses[metaverseId]._size += 1;
         }
+
+        emit InitMetaverse(metaverseId, _metaverses[metaverseId]._metaverseOwner, zone, spaceDatas);
     }
 
     function extendMetaverse(
@@ -170,6 +172,7 @@ contract MetaverseNFT is ERC721PresetMinterPauserAutoIdUpgradeable, ReentrancyGu
             // update size of metaverse
             _metaverses[metaverseId]._size += 1;
         }
+
     }
 
     // mint: mint a space as token
@@ -196,6 +199,8 @@ contract MetaverseNFT is ERC721PresetMinterPauserAutoIdUpgradeable, ReentrancyGu
         if (bytes(uri).length > 0) {
             _tokens[currentTokenId]._customUri = uri;
         }
+
+        emit Mint(mintTo, creator, metaverseId, zoneIndex, currentTokenId, uri, data);
     }
 
     function baseTokenURI() virtual public view returns (string memory) {
