@@ -177,9 +177,11 @@ contract MetaverseNFT is ERC721PresetMinterPauserAutoIdUpgradeable, ReentrancyGu
 
     // mint: mint a space as token
     // 
-    function mint(address mintTo, address creator, uint256 metaverseId, uint256 zoneIndex, uint256 currentTokenId, string memory uri, bytes memory data) external {
+    function mint(address mintTo, address creator, uint256 metaverseId, uint256 zoneIndex, uint256 spaceId, string memory uri, bytes memory data) external {
         // require mint from template layout contract
         require(msg.sender == _metaverseLayoutAddr, Errors.INV_LAYOUT);
+
+        // TODO verify spaceId
 
         if (_metaverses[metaverseId]._metaverseZones[zoneIndex].collAddr != address(0)) {
             // check nft holder
@@ -194,13 +196,13 @@ contract MetaverseNFT is ERC721PresetMinterPauserAutoIdUpgradeable, ReentrancyGu
             _minted[_metaverses[metaverseId]._metaverseZones[zoneIndex].collAddr][_erc721Id] = true;
         }
 
-        _tokens[currentTokenId]._creator = creator;
-        _safeMint(mintTo, currentTokenId);
+        _tokens[spaceId]._creator = creator;
+        _safeMint(mintTo, spaceId);
         if (bytes(uri).length > 0) {
-            _tokens[currentTokenId]._customUri = uri;
+            _tokens[spaceId]._customUri = uri;
         }
 
-        emit Mint(mintTo, creator, metaverseId, zoneIndex, currentTokenId, uri, data);
+        emit Mint(mintTo, creator, metaverseId, zoneIndex, spaceId, uri, data);
     }
 
     function baseTokenURI() virtual public view returns (string memory) {

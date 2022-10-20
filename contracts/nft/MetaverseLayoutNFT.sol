@@ -29,7 +29,7 @@ contract MetaverseLayoutNFT is Initializable, ERC721PresetMinterPauserAutoIdUpgr
         string _customUri; // project info nft view
         string _projectName; // name of project
         address _minterNFTInfo;// map projectId ->  NFT collection address mint from project
-
+        uint256 _mintTotalSupply; // total supply minted on metaverse
         string _script; // script render: 1/ simplescript 2/ ipfs:// protocol
         uint32 _scriptType; // script type: python, js, ....
         BoilerplateParam.ParamsOfProject _paramsTemplate; // struct contains list params of project and random seed(registered) in case mint nft from project
@@ -115,6 +115,57 @@ contract MetaverseLayoutNFT is Initializable, ERC721PresetMinterPauserAutoIdUpgr
         IMetaverseNFT metaverseNFT = IMetaverseNFT(address(0));
         metaverseNFT.initMetaverse(metaverseId, msg.sender, zone, spaceDatas);
         return metaverseId;
+    }
+
+    function mintSpace(IMetaverseLayoutNFT.MintRequest memory mintBatch) public nonReentrant payable {
+        MetaverseInfo memory project = _metaverses[mintBatch._metaverseId];
+        require(mintBatch._uriBatch.length > 0
+        && mintBatch._uriBatch.length == mintBatch._paramsBatch.length
+            && mintBatch._spaceIdBatch.length == mintBatch._paramsBatch.length, Errors.INV_PARAMS);
+        IParameterControl _p = IParameterControl(_paramsAddress);
+
+        // get payable
+        bool success;
+        uint256 _mintFee = project._fee;
+        if (_mintFee > 0) {
+            _mintFee *= mintBatch._uriBatch.length;
+            uint256 operationFee = _p.getUInt256(MetaverseLayoutNFTConfiguration.MINT_NFT_FEE);
+            if (operationFee == 0) {
+                operationFee = 500;
+                // default 5% getting, 95% pay for owner of project
+            }
+            if (project._feeTokenAddr == address(0)) {
+                require(msg.value >= _mintFee);
+
+                // pay for owner project
+                (success,) = ownerOf(mintBatch._metaverseId).call{value : _mintFee - (_mintFee * operationFee / 10000)}("");
+                require(success);
+            } else {
+                IERC20Upgradeable tokenERC20 = IERC20Upgradeable(project._feeTokenAddr);
+                // transfer all fee erc-20 token to this contract
+                require(tokenERC20.transferFrom(
+                        msg.sender,
+                        address(this),
+                        _mintFee
+                    ));
+
+                // pay for owner project
+                require(tokenERC20.transfer(ownerOf(mintBatch._metaverseId), _mintFee - (_mintFee * operationFee / 10000)));
+            }
+        }
+
+        // minting NFT to other collection by minter
+        IMetaverseNFT nft = IMetaverseNFT(_metaverses[mintBatch._metaverseId]._minterNFTInfo);
+        for (uint256 i = 0; i < mintBatch._paramsBatch.length; i++) {
+            require(_metaverses[mintBatch._metaverseId]._paramsTemplate._params.length == mintBatch._paramsBatch[i]._params.length, Errors.INV_PARAMS);
+
+            nft.mint(mintBatch._mintTo, msg.sender, mintBatch._metaverseId, mintBatch._zoneIndex, mintBatch._spaceIdBatch[i], mintBatch._uriBatch[i], "");
+            // increase total supply minting on project
+            project._mintTotalSupply += 1;
+            _metaverses[mintBatch._metaverseId]._mintTotalSupply = project._mintTotalSupply;
+        }
+
+        emit MintSpace(msg.sender, mintBatch);
     }
 
     // disable burn

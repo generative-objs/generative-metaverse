@@ -18,4 +18,5 @@ library Errors {
     string public constant EXIST_METAVERSE = "202";
     string public constant N_EXIST_METAVERSE = "203";
     string public constant INV_ZONE = "204";
+    string public constant INV_PARAMS = "205";
 }
