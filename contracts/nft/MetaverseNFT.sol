@@ -100,6 +100,10 @@ contract MetaverseNFT is ERC721PresetMinterPauserAutoIdUpgradeable, ReentrancyGu
         _metaverses[_metaverseId]._metaverseOwner = _add;
     }
 
+    function getZone(uint256 metaverseId, uint256 zoneIndex) external returns (SharedStruct.ZoneInfo memory) {
+        return _metaverses[metaverseId]._metaverseZones[zoneIndex];
+    }
+
     // TODO:
     function validateSpaceData(uint256 metaverseId, uint256 zoneIndex, uint256 spaceIndex, SharedStruct.SpaceInfo memory spaceData) internal returns (uint256) {
         uint256 _spaceId = (metaverseId * (10 ** 9) + zoneIndex) * (10 ** 9) + (spaceIndex + 1);

@@ -13,4 +13,6 @@ interface IMetaverseNFT {
     function mint(address mintTo, address creator, uint256 metaverseId, uint256 zoneIndex, uint256 currentTokenId, string memory uri, bytes memory data) external;
 
     function extendMetaverse(uint256 metaverseId, SharedStruct.ZoneInfo memory zone, SharedStruct.SpaceInfo[] memory spaceDatas) external;
+
+    function getZone(uint256 metaverseId, uint256 zoneIndex) external returns (SharedStruct.ZoneInfo memory);
 }

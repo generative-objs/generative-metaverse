@@ -156,10 +156,14 @@ contract MetaverseLayoutNFT is Initializable, ERC721PresetMinterPauserAutoIdUpgr
 
         // minting NFT to other collection by minter
         IMetaverseNFT nft = IMetaverseNFT(_metaverses[mintBatch._metaverseId]._minterNFTInfo);
+        SharedStruct.ZoneInfo memory zone = nft.getZone(mintBatch._metaverseId, mintBatch._zoneIndex);
         for (uint256 i = 0; i < mintBatch._paramsBatch.length; i++) {
             require(_metaverses[mintBatch._metaverseId]._paramsTemplate._params.length == mintBatch._paramsBatch[i]._params.length, Errors.INV_PARAMS);
-
-            nft.mint(mintBatch._mintTo, msg.sender, mintBatch._metaverseId, mintBatch._zoneIndex, mintBatch._spaceIdBatch[i], mintBatch._uriBatch[i], "");
+            bytes memory data = abi.encodePacked("");
+            if (zone.typeZone == 2) {
+                data = abi.encodePacked(mintBatch._spaceIdBatch[i]);
+            }
+            nft.mint(mintBatch._mintTo, msg.sender, mintBatch._metaverseId, mintBatch._zoneIndex, mintBatch._spaceIdBatch[i], mintBatch._uriBatch[i], data);
             // increase total supply minting on project
             project._mintTotalSupply += 1;
             _metaverses[mintBatch._metaverseId]._mintTotalSupply = project._mintTotalSupply;
@@ -172,8 +176,7 @@ contract MetaverseLayoutNFT is Initializable, ERC721PresetMinterPauserAutoIdUpgr
     function burn(uint256 tokenId) public override {}
 
     function exists(uint256 _id) external view returns (bool) {
-        // TODO
-        return true;
+        return _exists(_id);
     }
 
     /** @dev EIP2981 royalties implementation. */

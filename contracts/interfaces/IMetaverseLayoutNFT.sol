@@ -11,6 +11,7 @@ interface IMetaverseLayoutNFT {
         uint256 _zoneIndex;
         address _mintTo;
         uint256[] _spaceIdBatch;
+        uint256[] _erc721TokenId;
         string[] _uriBatch;
         BoilerplateParam.ParamsOfProject[] _paramsBatch;
     }
