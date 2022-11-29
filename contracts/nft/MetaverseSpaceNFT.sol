@@ -5,12 +5,19 @@ import "@openzeppelin/contracts-upgradeable/token/ERC721/presets/ERC721PresetMin
 import "@openzeppelin/contracts-upgradeable/security/ReentrancyGuardUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/utils/CountersUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/interfaces/IERC2981Upgradeable.sol";
-import "../interfaces/IMetaverseNFT.sol";
+import "@openzeppelin/contracts-upgradeable/token/ERC20/IERC20Upgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+
 import "../lib/helpers/Errors.sol";
 import "../lib/helpers/Utils.sol";
 import "../lib/helpers/SharedStruct.sol";
+import "../lib/configurations/MetaverseLayoutNFTConfiguration.sol";
+import "../interfaces/IMetaverseLayoutNFT.sol";
+import "../interfaces/IParameterControl.sol";
+import "../interfaces/IMetaverseSpaceNFT.sol";
+import "../operator-filter-registry/upgradeable/DefaultOperatorFiltererUpgradeable.sol";
 
-contract MetaverseNFT is ERC721PresetMinterPauserAutoIdUpgradeable, ReentrancyGuardUpgradeable, IERC2981Upgradeable, IMetaverseNFT {
+contract MetaverseSpaceNFT is Initializable, ERC721PausableUpgradeable, ReentrancyGuardUpgradeable, OwnableUpgradeable, IERC2981Upgradeable, IMetaverseSpaceNFT, DefaultOperatorFiltererUpgradeable {
     using CountersUpgradeable for CountersUpgradeable.Counter;
     CountersUpgradeable.Counter private _nextTokenId;
 
@@ -19,38 +26,9 @@ contract MetaverseNFT is ERC721PresetMinterPauserAutoIdUpgradeable, ReentrancyGu
     address public _paramsAddr;
     address public _metaverseLayoutAddr;
 
-    // nft info
-    struct TokenInfo {
-        string _customUri;
-        address _creator;
-        bool _init;
-        SharedStruct.SpaceInfo _spaceData;
-    }
-
-    mapping(uint256 => TokenInfo) public _tokens;
-
-
-    struct MetaverseInfo {
-        address _metaverseOwner;
-        mapping(uint256 => SharedStruct.ZoneInfo) _metaverseZones;
-        uint256 _size;
-    }
-
-    mapping(uint256 => MetaverseInfo) public _metaverses;
-
-    mapping(address => bool) public _metaverseNftCollections; // 1 metaverse only map with 1 nft collections -> add zone-2 always = this nft collection
+    mapping(uint256 => SharedStruct.TokenInfo) public _tokens;
+    mapping(uint256 => SharedStruct.MetaverseInfo) public _metaverses;
     mapping(address => mapping(uint256 => bool)) _minted;// marked erc-721 id
-
-    modifier adminOnly() {
-        require(_msgSender() == _admin, Errors.ONLY_ADMIN_ALLOWED);
-        require(hasRole(DEFAULT_ADMIN_ROLE, _msgSender()), Errors.ONLY_ADMIN_ALLOWED);
-        _;
-    }
-
-    modifier creatorOnly(uint256 _id) {
-        require(_tokens[_id]._creator == _msgSender(), Errors.ONLY_CREATOR);
-        _;
-    }
 
     function initialize(
         string memory name,
@@ -59,45 +37,22 @@ contract MetaverseNFT is ERC721PresetMinterPauserAutoIdUpgradeable, ReentrancyGu
         address admin,
         address paramsAddress
     ) initializer public {
-        require(admin != address(0) && paramsAddress != address(0), Errors.INV_ADD);
-        __ERC721PresetMinterPauserAutoId_init(name, symbol, baseUri);
+        require(admin != address(0), Errors.INV_ADD);
+        require(paramsAddress != address(0), Errors.INV_ADD);
+        __ERC721_init(name, symbol);
         _paramsAddr = paramsAddress;
         _admin = admin;
 
-        // set role for admin address
-        grantRole(DEFAULT_ADMIN_ROLE, _admin);
-        grantRole(MINTER_ROLE, _admin);
-        grantRole(PAUSER_ROLE, _admin);
-        // revoke role for sender
-        revokeRole(DEFAULT_ADMIN_ROLE, msg.sender);
-        revokeRole(MINTER_ROLE, msg.sender);
-        revokeRole(PAUSER_ROLE, msg.sender);
+        __Ownable_init();
+        //        __DefaultOperatorFilterer_init();
+        __ReentrancyGuard_init();
+        __ERC721Pausable_init();
     }
 
-    function changeAdmin(address _newAdmin) public adminOnly {
-        require(_newAdmin != address(0), Errors.INV_ADD);
+    function changeAdmin(address _newAdmin) public {
+        require(msg.sender == _admin && _newAdmin != address(0), Errors.INV_ADD);
         address _previousAdmin = _admin;
         _admin = _newAdmin;
-
-        grantRole(DEFAULT_ADMIN_ROLE, _admin);
-        grantRole(MINTER_ROLE, _admin);
-        grantRole(PAUSER_ROLE, _admin);
-
-        revokeRole(DEFAULT_ADMIN_ROLE, _previousAdmin);
-        revokeRole(MINTER_ROLE, _previousAdmin);
-        revokeRole(PAUSER_ROLE, _previousAdmin);
-    }
-
-    function changeMetaverseLayoutAddr(address newAddr) public adminOnly {
-        require(newAddr != address(0), Errors.INV_ADD);
-        address _prevAddr = _metaverseLayoutAddr;
-        _metaverseLayoutAddr = newAddr;
-
-    }
-
-    function changeMetaverseOwner(uint256 _metaverseId, address _add) external {
-        require(_metaverses[_metaverseId]._metaverseOwner == msg.sender && _add != address(0), Errors.INV_ADD);
-        _metaverses[_metaverseId]._metaverseOwner = _add;
     }
 
     function getZone(uint256 metaverseId, uint256 zoneIndex) external returns (SharedStruct.ZoneInfo memory) {
@@ -123,34 +78,30 @@ contract MetaverseNFT is ERC721PresetMinterPauserAutoIdUpgradeable, ReentrancyGu
 
         // validate params
         require(zone.typeZone > 0 && zone.zoneIndex > 0, Errors.INV_ZONE);
-        require(_metaverses[metaverseId]._metaverseOwner == address(0), Errors.EXIST_METAVERSE);
+        require(_metaverses[metaverseId]._creator == address(0), Errors.EXIST_METAVERSE);
         require(zone.typeZone > 0);
         if (zone.typeZone == 2) {
-            require(_metaverseNftCollections[zone.collAddr] == false, Errors.EXIST_METAVERSE);
             require(zone.zoneIndex == 2, Errors.INV_ZONE);
-            // marked nft-gated
-            _metaverseNftCollections[zone.collAddr] = true;
             // set owner is admin
-            _metaverses[metaverseId]._metaverseOwner = _admin;
+            _metaverses[metaverseId]._creator = _admin;
         } else if (zone.typeZone == 3) {
             require(zone.zoneIndex == 3, Errors.INV_ZONE);
             // set owner is creator who is called from metaverse layout
             require(creator != address(0));
-            _metaverses[metaverseId]._metaverseOwner = creator;
+            _metaverses[metaverseId]._creator = creator;
         }
         // set zone
         _metaverses[metaverseId]._metaverseZones[zone.zoneIndex] = zone;
 
         // loop for setting space info
+        _metaverses[metaverseId]._size = spaceDatas.length;
         for (uint256 i = 0; i < spaceDatas.length; i++) {
             uint256 spaceId = validateSpaceData(metaverseId, zone.zoneIndex, i, spaceDatas[i]);
             require(spaceId > 0);
             _tokens[spaceId]._spaceData = spaceDatas[i];
-            // update size of metaverse
-            _metaverses[metaverseId]._size += 1;
         }
 
-        emit InitMetaverse(metaverseId, _metaverses[metaverseId]._metaverseOwner, zone, spaceDatas);
+        emit InitMetaverse(metaverseId, _metaverses[metaverseId]._creator, zone, spaceDatas);
     }
 
     function extendMetaverse(
@@ -162,7 +113,7 @@ contract MetaverseNFT is ERC721PresetMinterPauserAutoIdUpgradeable, ReentrancyGu
         require(msg.sender == _metaverseLayoutAddr, Errors.INV_LAYOUT);
 
         require(zone.typeZone > 0 && zone.zoneIndex > 0, Errors.INV_ZONE);
-        require(_metaverses[metaverseId]._metaverseOwner != address(0), Errors.N_EXIST_METAVERSE);
+        require(_metaverses[metaverseId]._creator != address(0), Errors.N_EXIST_METAVERSE);
         if (_metaverses[metaverseId]._metaverseZones[2].typeZone == 2) {
             require(zone.typeZone == 2 || zone.typeZone == 3, Errors.INV_ZONE);
         } else if (_metaverses[metaverseId]._metaverseZones[2].typeZone == 3) {
@@ -185,10 +136,40 @@ contract MetaverseNFT is ERC721PresetMinterPauserAutoIdUpgradeable, ReentrancyGu
 
     // mint: mint a space as token
     // 
-    function mint(address mintTo, address creator, uint256 metaverseId, uint256 zoneIndex, uint256 spaceId, string memory uri, bytes memory data) external {
-        // require mint from template layout contract
-        require(msg.sender == _metaverseLayoutAddr, Errors.INV_LAYOUT);
+    function paymentMintNFT(address _creator, address _feeToken, uint256 _fee) internal {
+        if (_creator != msg.sender) {// not owner of project -> get payment
+            // default 5% getting, 95% pay for owner of project
+            uint256 operationFee = 500;
+            if (_paramsAddr != address(0)) {
+                IParameterControl _p = IParameterControl(_paramsAddr);
+                operationFee = _p.getUInt256(MetaverseLayoutNFTConfiguration.MINT_NFT_FEE);
+            }
+            if (_feeToken == address(0x0)) {
+                require(msg.value >= _fee);
 
+                // pay for owner project
+                (bool success,) = _creator.call{value : _fee - (_fee * operationFee / 10000)}("");
+                require(success);
+                // pay for host _boilerplateAddr
+                (success,) = _metaverseLayoutAddr.call{value : _fee * operationFee / 10000}("");
+            } else {
+                IERC20Upgradeable tokenERC20 = IERC20Upgradeable(_feeToken);
+                // transfer all fee erc-20 token to this contract
+                require(tokenERC20.transferFrom(
+                        msg.sender,
+                        address(this),
+                        _fee
+                    ));
+
+                // pay for owner project
+                require(tokenERC20.transfer(_creator, _fee - (_fee * operationFee / 10000)));
+                // pay for host _boilerplateAddr
+                require(tokenERC20.transfer(_creator, _fee * operationFee / 10000));
+            }
+        }
+    }
+
+    function mint(uint256 metaverseId, uint256 zoneIndex, uint256 spaceId, string memory uri, bytes memory data) external {
         // TODO verify spaceId
         require(!_exists(spaceId), Errors.INV_SPACE_ID);
 
@@ -205,13 +186,16 @@ contract MetaverseNFT is ERC721PresetMinterPauserAutoIdUpgradeable, ReentrancyGu
             _minted[_metaverses[metaverseId]._metaverseZones[zoneIndex].collAddr][_erc721Id] = true;
         }
 
-        _tokens[spaceId]._creator = creator;
-        _safeMint(mintTo, spaceId);
+        paymentMintNFT(address(0x0), address(0x0), 0);
+
+        _tokens[spaceId]._creator = _metaverses[metaverseId]._creator;
+        _safeMint(msg.sender, spaceId);
+
         if (bytes(uri).length > 0) {
             _tokens[spaceId]._customUri = uri;
         }
 
-        emit Mint(mintTo, creator, metaverseId, zoneIndex, spaceId, uri, data);
+        emit Mint(metaverseId, zoneIndex, spaceId, uri, data);
     }
 
     function baseTokenURI() virtual public view returns (string memory) {
@@ -227,52 +211,31 @@ contract MetaverseNFT is ERC721PresetMinterPauserAutoIdUpgradeable, ReentrancyGu
         }
     }
 
-    function _setCreator(address _to, uint256 _id) internal creatorOnly(_id) {
-        _tokens[_id]._creator = _to;
-    }
-
-    function setCreator(
-        address _to,
-        uint256[] memory _ids
-    ) public {
-        require(_to != address(0), Errors.INV_ADD);
-
-        _grantRole(MINTER_ROLE, _to);
-        for (uint256 i = 0; i < _ids.length; i++) {
-            uint256 id = _ids[i];
-            _setCreator(_to, id);
-        }
-    }
-
     /** @dev EIP2981 royalties implementation. */
-    struct RoyaltyInfo {
-        address recipient;
-        uint24 amount;
-        bool isValue;
-    }
-
-    mapping(uint256 => RoyaltyInfo) public royalties;
-
-    function setTokenRoyalty(
-        uint256 _tokenId,
-        address _recipient,
-        uint256 _value
-    ) public adminOnly {
-        require(_value <= 10000, Errors.REACH_MAX);
-        royalties[_tokenId] = RoyaltyInfo(_recipient, uint24(_value), true);
-    }
-
     // EIP2981 standard royalties return.
     function royaltyInfo(uint256 _tokenId, uint256 _salePrice) external view override
     returns (address receiver, uint256 royaltyAmount)
     {
-        RoyaltyInfo memory royalty = royalties[_tokenId];
-        if (royalty.isValue) {
-            receiver = royalty.recipient;
-            royaltyAmount = (_salePrice * royalty.amount) / 10000;
-        } else {
-            receiver = _tokens[_tokenId]._creator;
-            royaltyAmount = (_salePrice * 500) / 10000;
-        }
+        receiver = _tokens[_tokenId]._creator;
+        royaltyAmount = (_salePrice * 500) / 10000;
+    }
+
+    /* @notice: EIP2981 royalties implementation. 
+    // EIP2981 standard royalties return.
+    */
+    function transferFrom(address from, address to, uint256 tokenId) public override onlyAllowedOperator(from) {
+        super.transferFrom(from, to, tokenId);
+    }
+
+    function safeTransferFrom(address from, address to, uint256 tokenId) public override onlyAllowedOperator(from) {
+        super.safeTransferFrom(from, to, tokenId);
+    }
+
+    function safeTransferFrom(address from, address to, uint256 tokenId, bytes memory data)
+    public
+    override
+    onlyAllowedOperator(from)
+    {
+        super.safeTransferFrom(from, to, tokenId, data);
     }
 }
