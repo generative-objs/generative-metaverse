@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: agpl-3.0
 pragma solidity 0.8.12;
 
+/*
 import "@openzeppelin/contracts-upgradeable/interfaces/IERC2981Upgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/token/ERC721/presets/ERC721PresetMinterPauserAutoIdUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/security/ReentrancyGuardUpgradeable.sol";
@@ -63,8 +64,10 @@ contract MetaverseLayoutNFT is Initializable, ERC721PausableUpgradeable, Reentra
         }
     }
 
-    /* @URI: control uri
     */
+/* @URI: control uri
+    *//*
+
     function _baseURI() internal view override returns (string memory) {
         return _uri;
     }
@@ -74,9 +77,11 @@ contract MetaverseLayoutNFT is Initializable, ERC721PausableUpgradeable, Reentra
         _uri = baseURI;
     }
 
-    /* @MINT: Mint/Init metaverse
-    // create metaverse layout and init metaverse in MetaverseNFT
     */
+/* @MINT: Mint/Init metaverse
+    // create metaverse layout and init metaverse in MetaverseNFT
+    *//*
+
 
     function paymentMint() internal {
         if (msg.sender != _admin) {
@@ -144,9 +149,11 @@ contract MetaverseLayoutNFT is Initializable, ERC721PausableUpgradeable, Reentra
         metaverseNFT.extendMetaverse(metaverseId, zone, spaceDatas);
     }
 
-    /* @notice: EIP2981 royalties implementation. 
-    // EIP2981 standard royalties return.
     */
+/* @notice: EIP2981 royalties implementation. 
+    // EIP2981 standard royalties return.
+    *//*
+
     function royaltyInfo(uint256 _tokenId, uint256 _salePrice) external view override
     returns (address receiver, uint256 royaltyAmount)
     {
@@ -155,8 +162,10 @@ contract MetaverseLayoutNFT is Initializable, ERC721PausableUpgradeable, Reentra
     }
 
 
-    /* @notice: opensea operator filter registry
     */
+/* @notice: opensea operator filter registry
+    *//*
+
     function transferFrom(address from, address to, uint256 tokenId) public override onlyAllowedOperator(from) {
         super.transferFrom(from, to, tokenId);
     }
@@ -172,4 +181,4 @@ contract MetaverseLayoutNFT is Initializable, ERC721PausableUpgradeable, Reentra
     {
         super.safeTransferFrom(from, to, tokenId, data);
     }
-}
+}*/
