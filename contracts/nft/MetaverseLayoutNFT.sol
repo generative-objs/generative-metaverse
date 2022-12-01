@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: agpl-3.0
 pragma solidity 0.8.12;
 
-/*
 import "@openzeppelin/contracts-upgradeable/interfaces/IERC2981Upgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/token/ERC721/presets/ERC721PresetMinterPauserAutoIdUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/security/ReentrancyGuardUpgradeable.sol";
@@ -11,18 +10,24 @@ import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import "../interfaces/IMetaverseLayoutNFT.sol";
 import "../lib/helpers/Errors.sol";
 import "../lib/helpers/Utils.sol";
-import "../lib/helpers/SharedStruct.sol";
+import "../lib/structs/Metaverse.sol";
 import "../interfaces/IMetaverseSpaceNFT.sol";
 import "../interfaces/IParameterControl.sol";
-import "../lib/helpers/SharedStruct.sol";
 import "../lib/configurations/MetaverseLayoutNFTConfiguration.sol";
 import "../operator-filter-registry/upgradeable/DefaultOperatorFiltererUpgradeable.sol";
+import "../lib/structs/Space.sol";
+import "../interfaces/ICallback.sol";
 
-contract MetaverseLayoutNFT is Initializable, ERC721PausableUpgradeable, ReentrancyGuardUpgradeable, OwnableUpgradeable, IMetaverseLayoutNFT, IERC2981Upgradeable, DefaultOperatorFiltererUpgradeable {
+contract MetaverseLayoutNFT is Initializable, ERC721PausableUpgradeable, ReentrancyGuardUpgradeable,
+OwnableUpgradeable, IMetaverseLayoutNFT, IERC2981Upgradeable, ICallback, DefaultOperatorFiltererUpgradeable {
+    // admin feature
     address public _admin;
-    address public _paramsAddress;
+    address public _paramsAddr;
+    address public _oracleServiceAddr;
+    // base uri
     string public _uri;
-    mapping(uint256 => SharedStruct.MetaverseInfo) public _metaverses;
+    // metaverse info 
+    mapping(uint256 => Metaverse.MetaverseInfo) public _metaverses;
     mapping(address => bool) public _metaverseNftCollections; // 1 metaverse only map with 1 nft collections -> add zone-2 always = this nft collection
 
     function initialize(
@@ -34,7 +39,7 @@ contract MetaverseLayoutNFT is Initializable, ERC721PausableUpgradeable, Reentra
         require(admin != address(0), Errors.INV_ADD);
         require(paramsAddress != address(0), Errors.INV_ADD);
         __ERC721_init(name, symbol);
-        _paramsAddress = paramsAddress;
+        _paramsAddr = paramsAddress;
         _admin = admin;
 
         __Ownable_init();
@@ -50,23 +55,22 @@ contract MetaverseLayoutNFT is Initializable, ERC721PausableUpgradeable, Reentra
         _admin = newAdm;
     }
 
-    function withdraw(address receiver, address erc20Addr, uint256 amount) external nonReentrant {
+    function withdraw(address erc20Addr, uint256 amount) external nonReentrant {
         require(msg.sender == _admin, Errors.ONLY_ADMIN_ALLOWED);
         bool success;
         if (erc20Addr == address(0x0)) {
             require(address(this).balance >= amount);
-            (success,) = receiver.call{value : amount}("");
+            (success,) = msg.sender.call{value : amount}("");
             require(success);
         } else {
             IERC20Upgradeable tokenERC20 = IERC20Upgradeable(erc20Addr);
             // transfer erc-20 token
-            require(tokenERC20.transfer(receiver, amount));
+            require(tokenERC20.transfer(msg.sender, amount));
         }
     }
 
+    /* @URI: control uri
     */
-/* @URI: control uri
-    *//*
 
     function _baseURI() internal view override returns (string memory) {
         return _uri;
@@ -77,17 +81,24 @@ contract MetaverseLayoutNFT is Initializable, ERC721PausableUpgradeable, Reentra
         _uri = baseURI;
     }
 
-    */
-/* @MINT: Mint/Init metaverse
+    function tokenURI(uint256 metaverseId) override public view returns (string memory) {
+        bytes memory customUriBytes = bytes(_metaverses[metaverseId]._customUri);
+        if (customUriBytes.length > 0) {
+            return _metaverses[metaverseId]._customUri;
+        } else {
+            string memory baseURI = _baseURI();
+            return bytes(baseURI).length > 0 ? string(abi.encodePacked(baseURI, StringsUpgradeable.toString(metaverseId))) : "";
+        }
+    }
+
+    /* @MINT : Mint / Init metaverse
     // create metaverse layout and init metaverse in MetaverseNFT
-    *//*
-
-
-    function paymentMint() internal {
+    */
+    function paymentMint(Metaverse.ZoneInfo memory zone) internal {
         if (msg.sender != _admin) {
-            IParameterControl _p = IParameterControl(_paramsAddress);
+            IParameterControl _p = IParameterControl(_paramsAddr);
             // at least require value 1ETH
-            uint256 operationFee = _p.getUInt256(MetaverseLayoutNFTConfiguration.CREATE_PROJECT_FEE);
+            uint256 operationFee = _p.getUInt256(MetaverseLayoutNFTConfiguration.CREATE_METAVERSE_FEE);
             if (operationFee > 0) {
                 address operationFeeToken = _p.getAddress(MetaverseLayoutNFTConfiguration.FEE_TOKEN);
                 if (!(operationFeeToken == address(0))) {
@@ -110,49 +121,73 @@ contract MetaverseLayoutNFT is Initializable, ERC721PausableUpgradeable, Reentra
         address feeToken,
         uint256 fee,
         string memory algo,
-        SharedStruct.ZoneInfo memory zone,
-        SpaceData.SpaceInfo[] memory spaceDatas) public nonReentrant payable {
+        Metaverse.ZoneInfo memory zone
+    ) public nonReentrant payable {
         // payment
-        IParameterControl _p = IParameterControl(_paramsAddress);
-        paymentMint();
+        IParameterControl _p = IParameterControl(_paramsAddr);
+        paymentMint(zone);
 
-        _metaverses[metaverseId]._creator = msg.sender;
-        // fee
-        _metaverses[metaverseId]._fee = fee;
-        _metaverses[metaverseId]._feeTokenAddr = feeToken;
-        // script
-        _metaverses[metaverseId]._algo = algo;
-
+        // check metaverse id
+        require(_metaverses[metaverseId]._creator == address(0), Errors.EXIST_METAVERSE);
+        // check zone
+        require(zone.typeZone == Metaverse.NFTGATED || zone.typeZone == Metaverse.NONFTGATED, Errors.INV_ZONE);
+        // check space collection
         require(spaceNFT != address(0), Errors.INV_ADD);
         IMetaverseSpaceNFT metaverseSpaceNFT = IMetaverseSpaceNFT(spaceNFT);
         require(address(metaverseSpaceNFT).code.length > 0);
-        _metaverses[metaverseId]._spaceAddress = spaceNFT;
-        if (zone.zoneIndex == 2) {
-            // marked nft-gated
-            require(_metaverseNftCollections[zone.collAddr] == false, Errors.EXIST_METAVERSE);
-            _metaverseNftCollections[zone.collAddr] = true;
+
+        // init metaverse
+        _metaverses[metaverseId]._creator = msg.sender;
+        _metaverses[metaverseId]._fee = fee;
+        _metaverses[metaverseId]._feeTokenAddr = feeToken;
+        _metaverses[metaverseId]._algo = algo;
+        _metaverses[metaverseId]._spaceAddr = spaceNFT;
+        if (zone.typeZone == Metaverse.NFTGATED) {
+            _metaverses[metaverseId]._creator = _admin;
+        } else if (zone.typeZone == Metaverse.NONFTGATED) {
+            _metaverses[metaverseId]._creator = msg.sender;
+        } else {
             _metaverses[metaverseId]._creator = _admin;
         }
-        
-        // send init to space
-        metaverseSpaceNFT.initMetaverse(metaverseId, _metaverses[metaverseId]._creator, zone, spaceDatas);
+        _metaverses[metaverseId]._zones.push(zone);
+        // send init to space collection
+
+        // TODO:     metaverseSpaceNFT.initMetaverse(metaverseId, _metaverses[metaverseId]._creator, zone, spaceDatas);
         _safeMint(msg.sender, metaverseId);
     }
 
     function extendMetaverse(
         uint256 metaverseId,
-        SharedStruct.ZoneInfo memory zone,
-        SpaceData.SpaceInfo[] memory spaceDatas)
-    external {
+        Metaverse.ZoneInfo memory zone
+    ) external {
         require(msg.sender == ownerOf(metaverseId), Errors.INV_ADD);
-        IMetaverseSpaceNFT metaverseNFT = IMetaverseSpaceNFT(_metaverses[metaverseId]._spaceAddress);
-        metaverseNFT.extendMetaverse(metaverseId, zone, spaceDatas);
+        // check metaverse id
+        require(_metaverses[metaverseId]._creator == address(0), Errors.EXIST_METAVERSE);
+        // check zone
+        require(zone.typeZone == Metaverse.NFTGATED || zone.typeZone == Metaverse.NONFTGATED, Errors.INV_ZONE);
+        if (_metaverses[metaverseId]._zones[_metaverses[metaverseId]._zones.length - 1].typeZone == Metaverse.NONFTGATED) {
+            require(zone.typeZone == Metaverse.NONFTGATED, Errors.INV_ZONE);
+        }
+
+        _metaverses[metaverseId]._zones.push(zone);
+        IMetaverseSpaceNFT metaverseNFT = IMetaverseSpaceNFT(_metaverses[metaverseId]._spaceAddr);
+        // send extend to space collection
+        // TODO:       metaverseNFT.extendMetaverse(metaverseId, zone, spaceDatas);
     }
 
-    */
-/* @notice: EIP2981 royalties implementation. 
+    function setAlgo(uint256 metaverseId, string memory metaverseAlgo) external {
+        require(msg.sender == _metaverses[metaverseId]._creator, Errors.INV_ADD);
+        _metaverses[metaverseId]._algo = metaverseAlgo;
+    }
+
+    function setCustomUri(uint256 metaverseId, string memory uri) external {
+        require(msg.sender == _metaverses[metaverseId]._creator, Errors.INV_ADD);
+        _metaverses[metaverseId]._customUri = uri;
+    }
+
+    /* @Royalty: EIP2981 royalties implementation. 
     // EIP2981 standard royalties return.
-    *//*
+    */
 
     function royaltyInfo(uint256 _tokenId, uint256 _salePrice) external view override
     returns (address receiver, uint256 royaltyAmount)
@@ -162,9 +197,8 @@ contract MetaverseLayoutNFT is Initializable, ERC721PausableUpgradeable, Reentra
     }
 
 
+    /* @Opensea: opensea operator filter registry
     */
-/* @notice: opensea operator filter registry
-    *//*
 
     function transferFrom(address from, address to, uint256 tokenId) public override onlyAllowedOperator(from) {
         super.transferFrom(from, to, tokenId);
@@ -181,4 +215,19 @@ contract MetaverseLayoutNFT is Initializable, ERC721PausableUpgradeable, Reentra
     {
         super.safeTransferFrom(from, to, tokenId, data);
     }
-}*/
+
+    /* @Oracle:
+    */
+
+    function changeOracle(address oracle) external {
+        require(msg.sender == _admin, Errors.ONLY_ADMIN_ALLOWED);
+        require(oracle != address(0), Errors.INV_ADD);
+        _oracleServiceAddr = oracle;
+    }
+
+    function fulfill(bytes32 requestId, bytes memory data) external {
+        require(msg.sender == _oracleServiceAddr, Errors.INV_ADD);
+        emit FulfillEvent(requestId, data);
+        // TODO: do something
+    }
+}
