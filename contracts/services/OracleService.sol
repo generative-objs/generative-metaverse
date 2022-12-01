@@ -1,7 +1,6 @@
 pragma solidity ^0.8.0;
 
 import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
-import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import '@chainlink/contracts/src/v0.8/ChainlinkClient.sol';
 
@@ -51,7 +50,7 @@ contract OracleService is ReentrancyGuard, Ownable, IOracleService, ChainlinkCli
         setChainlinkToken(LINK_TOKEN);
     }
 
-    function withdrawLink() public {
+    function withdrawLink() external nonReentrant {
         require(msg.sender == _admin, Errors.ONLY_ADMIN_ALLOWED);
         LinkTokenInterface link = LinkTokenInterface(chainlinkTokenAddress());
         require(link.transfer(msg.sender, link.balanceOf(address(this))), 'Unable to transfer');
@@ -66,7 +65,7 @@ contract OracleService is ReentrancyGuard, Ownable, IOracleService, ChainlinkCli
     /* @Oracle feature
     */
 
-    function requestData(string memory jobId, uint256 fee, string memory url, string memory path, address callback) public returns (bytes32 requestId) {
+    function requestData(string memory jobId, uint256 fee, string memory url, string memory path, address callback) external override returns (bytes32 requestId) {
         require(msg.sender == _admin || msg.sender == _operator, Errors.ONLY_ADMIN_ALLOWED);
         require(callback != address(0x0), Errors.INV_ADD);
         require(callback.code.length > 0, Errors.INV_ADD);
@@ -83,7 +82,7 @@ contract OracleService is ReentrancyGuard, Ownable, IOracleService, ChainlinkCli
         return requestId;
     }
 
-    function fulfill(bytes32 requestId, bytes memory gameData) public recordChainlinkFulfillment(requestId) {
+    function fulfill(bytes32 requestId, bytes memory gameData) external override recordChainlinkFulfillment(requestId) {
         emit IOracleService.RequestFulfilledData(requestId, gameData);
         require(_callbackAddrs[requestId] != address(0));
         ICallback callBack = ICallback(_callbackAddrs[requestId]);
