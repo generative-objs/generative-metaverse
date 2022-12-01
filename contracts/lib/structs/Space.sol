@@ -8,7 +8,7 @@ library Space {
         address _nftGated;
     }
 
-    struct SpaceToken {
+    struct SpaceInfo {
         string _customUri;
         uint256 _metaverseId;
         SpaceData _spaceData;

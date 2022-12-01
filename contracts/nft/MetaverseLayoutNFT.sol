@@ -34,7 +34,8 @@ DefaultOperatorFiltererUpgradeable
     string public _uri;
     // metaverse info 
     mapping(uint256 => Metaverse.MetaverseInfo) public _metaverses;
-    mapping(address => bool) public _metaverseNftCollections; // 1 metaverse only map with 1 nft collections -> add zone-2 always = this nft collection
+    // 1 metaverse only map with 1 nft collections -> add zone-2 always = this nft collection
+    mapping(address => bool) public _metaverseNftCollections;
 
     function initialize(
         string memory name,
@@ -61,6 +62,16 @@ DefaultOperatorFiltererUpgradeable
         _admin = newAdm;
     }
 
+    function pause() external {
+        require(msg.sender == _admin, Errors.ONLY_ADMIN_ALLOWED);
+        _pause();
+    }
+
+    function unpause() external {
+        require(msg.sender == _admin, Errors.ONLY_ADMIN_ALLOWED);
+        _unpause();
+    }
+
     function withdraw(address erc20Addr, uint256 amount) external nonReentrant {
         require(msg.sender == _admin, Errors.ONLY_ADMIN_ALLOWED);
         bool success;
@@ -74,6 +85,13 @@ DefaultOperatorFiltererUpgradeable
             require(tokenERC20.transfer(msg.sender, amount));
         }
     }
+
+    /* @TRAITS: Get data for render
+    */
+    function getParameterValues(uint256 metaverseId) public view returns (uint256) {
+        return 0;
+    }
+
 
     /* @URI: control uri
     */
@@ -199,7 +217,7 @@ DefaultOperatorFiltererUpgradeable
     returns (address receiver, uint256 royaltyAmount)
     {
         receiver = _metaverses[_tokenId]._creator;
-        royaltyAmount = (_salePrice * 500) / 10000;
+        royaltyAmount = (_salePrice * 500) / Metaverse.PERCENT_MIN;
     }
 
 

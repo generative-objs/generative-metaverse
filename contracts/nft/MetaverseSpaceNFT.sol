@@ -3,7 +3,6 @@ pragma solidity 0.8.12;
 
 import "@openzeppelin/contracts-upgradeable/token/ERC721/presets/ERC721PresetMinterPauserAutoIdUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/security/ReentrancyGuardUpgradeable.sol";
-import "@openzeppelin/contracts-upgradeable/utils/CountersUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/interfaces/IERC2981Upgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/token/ERC20/IERC20Upgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
@@ -18,17 +17,18 @@ import "../operator-filter-registry/upgradeable/DefaultOperatorFiltererUpgradeab
 import "../lib/structs/Space.sol";
 import "../lib/structs/Metaverse.sol";
 
-contract MetaverseSpaceNFT is Initializable, ERC721PausableUpgradeable, ReentrancyGuardUpgradeable, OwnableUpgradeable, IERC2981Upgradeable, IMetaverseSpaceNFT, DefaultOperatorFiltererUpgradeable {
-    using CountersUpgradeable for CountersUpgradeable.Counter;
-    CountersUpgradeable.Counter private _nextTokenId;
-
-    // control infor
+contract MetaverseSpaceNFT is Initializable, ERC721PausableUpgradeable, ReentrancyGuardUpgradeable, OwnableUpgradeable,
+IERC2981Upgradeable, IMetaverseSpaceNFT,
+DefaultOperatorFiltererUpgradeable {
+    // admin feature
     address public _admin;
     address public _paramsAddr;
     address public _metaverseLayoutAddr;
+    // base uri
+    string public _uri;
 
-    mapping(uint256 => Space.SpaceToken) public _spaceTokens;
-    mapping(uint256 => Space.MetaverseInfo) public _metaverses;
+    mapping(uint256 => Space.SpaceInfo) public _spaceTokens;
+    mapping(uint256 => Space.MetaverseInfo) public _metaverses; // clone data from parent metaverse
     mapping(address => mapping(uint256 => bool)) _minted;// marked erc-721 id
 
     function initialize(
@@ -55,6 +55,16 @@ contract MetaverseSpaceNFT is Initializable, ERC721PausableUpgradeable, Reentran
         require(msg.sender == _admin && _newAdmin != address(0), Errors.INV_ADD);
         address _previousAdmin = _admin;
         _admin = _newAdmin;
+    }
+
+    function pause() external {
+        require(msg.sender == _admin, Errors.ONLY_ADMIN_ALLOWED);
+        _pause();
+    }
+
+    function unpause() external {
+        require(msg.sender == _admin, Errors.ONLY_ADMIN_ALLOWED);
+        _unpause();
     }
 
     // initMetaverse: init metaverse and had to call from metaverse layout contract
@@ -98,11 +108,31 @@ contract MetaverseSpaceNFT is Initializable, ERC721PausableUpgradeable, Reentran
 
     }
 
+    /* @URI: 
+    */
+    function _baseURI() internal view override returns (string memory) {
+        return "";
+    }
+
+    function tokenURI(uint256 _spaceId) override public view returns (string memory) {
+        bytes memory customUriBytes = bytes(_spaceTokens[_spaceId]._customUri);
+        if (customUriBytes.length > 0) {
+            return _spaceTokens[_spaceId]._customUri;
+        } else {
+            string memory baseURI = _baseURI();
+            return bytes(baseURI).length > 0 ? string(abi.encodePacked(baseURI, StringsUpgradeable.toString(_spaceId))) : "";
+        }
+    }
+
+    /* @TRAITS: Get data for render
+    */
+    function getParameterValues(uint256 metaverseId) public view returns (uint256) {
+        return 0;
+    }
 
     /* @MINT: mint a space as token
     */
-
-    function paymentMintNFT(address _creator, address _feeToken, uint256 _fee) internal {
+    function paymentMint(address _creator, address _feeToken, uint256 _fee) internal {
         if (_creator != msg.sender) {// not owner of project -> get payment
             // default 5% getting, 95% pay for owner of project
             uint256 operationFee = 500;
@@ -116,7 +146,7 @@ contract MetaverseSpaceNFT is Initializable, ERC721PausableUpgradeable, Reentran
                 // pay for owner project
                 (bool success,) = _creator.call{value : _fee - (_fee * operationFee / Metaverse.PERCENT_MIN)}("");
                 require(success);
-                // pay for host _boilerplateAddr
+                // pay for host metaverse parent
                 (success,) = _metaverseLayoutAddr.call{value : _fee * operationFee / Metaverse.PERCENT_MIN}("");
             } else {
                 IERC20Upgradeable tokenERC20 = IERC20Upgradeable(_feeToken);
@@ -125,8 +155,8 @@ contract MetaverseSpaceNFT is Initializable, ERC721PausableUpgradeable, Reentran
 
                 // pay for owner project
                 require(tokenERC20.transfer(_creator, _fee - (_fee * operationFee / Metaverse.PERCENT_MIN)));
-                // pay for host _boilerplateAddr
-                require(tokenERC20.transfer(_creator, _fee * operationFee / Metaverse.PERCENT_MIN));
+                // pay for host metaverse parent
+                require(tokenERC20.transfer(_metaverseLayoutAddr, _fee * operationFee / Metaverse.PERCENT_MIN));
             }
         }
     }
@@ -137,7 +167,7 @@ contract MetaverseSpaceNFT is Initializable, ERC721PausableUpgradeable, Reentran
         // TODO verify spaceId
 
         // payment
-        paymentMintNFT(_metaverses[metaverseId]._creator, _metaverses[metaverseId]._feeTokenAddr, _metaverses[metaverseId]._fee);
+        paymentMint(_metaverses[metaverseId]._creator, _metaverses[metaverseId]._feeTokenAddr, _metaverses[metaverseId]._fee);
 
         // create space data
         _spaceTokens[spaceId]._metaverseId = metaverseId;
@@ -170,7 +200,7 @@ contract MetaverseSpaceNFT is Initializable, ERC721PausableUpgradeable, Reentran
         }
 
         // payment
-        paymentMintNFT(_metaverses[metaverseId]._creator, _metaverses[metaverseId]._feeTokenAddr, _metaverses[metaverseId]._fee);
+        paymentMint(_metaverses[metaverseId]._creator, _metaverses[metaverseId]._feeTokenAddr, _metaverses[metaverseId]._fee);
 
         // create space data
         _spaceTokens[spaceId]._metaverseId = metaverseId;
@@ -182,21 +212,6 @@ contract MetaverseSpaceNFT is Initializable, ERC721PausableUpgradeable, Reentran
         }
     }
 
-    /* @URI: 
-    */
-    function baseTokenURI() virtual public view returns (string memory) {
-        return _baseURI();
-    }
-
-    function tokenURI(uint256 _tokenId) override public view returns (string memory) {
-        bytes memory customUriBytes = bytes(_spaceTokens[_tokenId]._customUri);
-        if (customUriBytes.length > 0) {
-            return _spaceTokens[_tokenId]._customUri;
-        } else {
-            return string(abi.encodePacked(baseTokenURI(), StringsUpgradeable.toString(_tokenId)));
-        }
-    }
-
     /* @dev EIP2981 royalties implementation. 
     // EIP2981 standard royalties return.
     */
@@ -204,7 +219,7 @@ contract MetaverseSpaceNFT is Initializable, ERC721PausableUpgradeable, Reentran
     returns (address receiver, uint256 royaltyAmount)
     {
         receiver = _metaverses[_spaceTokens[_tokenId]._metaverseId]._creator;
-        royaltyAmount = (_salePrice * 500) / 10000;
+        royaltyAmount = (_salePrice * 500) / Metaverse.PERCENT_MIN;
     }
 
     /* @notice: EIP2981 royalties implementation. 
