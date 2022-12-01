@@ -106,7 +106,7 @@ contract MetaverseLayoutNFT is Initializable, ERC721PausableUpgradeable, Reentra
         uint256 fee,
         string memory algo,
         SharedStruct.ZoneInfo memory zone,
-        SharedStruct.SpaceInfo[] memory spaceDatas) public nonReentrant payable {
+        SpaceData.SpaceInfo[] memory spaceDatas) public nonReentrant payable {
         // payment
         IParameterControl _p = IParameterControl(_paramsAddress);
         paymentMint();
@@ -137,7 +137,7 @@ contract MetaverseLayoutNFT is Initializable, ERC721PausableUpgradeable, Reentra
     function extendMetaverse(
         uint256 metaverseId,
         SharedStruct.ZoneInfo memory zone,
-        SharedStruct.SpaceInfo[] memory spaceDatas)
+        SpaceData.SpaceInfo[] memory spaceDatas)
     external {
         require(msg.sender == ownerOf(metaverseId), Errors.INV_ADD);
         IMetaverseSpaceNFT metaverseNFT = IMetaverseSpaceNFT(_metaverses[metaverseId]._spaceAddress);

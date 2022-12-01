@@ -26,7 +26,7 @@ contract MetaverseSpaceNFT is Initializable, ERC721PausableUpgradeable, Reentran
     address public _paramsAddr;
     address public _metaverseLayoutAddr;
 
-    mapping(uint256 => SharedStruct.TokenInfo) public _tokens;
+    mapping(uint256 => SpaceToken.TokenInfo) public _tokens;
     mapping(uint256 => SharedStruct.MetaverseInfo) public _metaverses;
     mapping(address => mapping(uint256 => bool)) _minted;// marked erc-721 id
 
@@ -44,7 +44,7 @@ contract MetaverseSpaceNFT is Initializable, ERC721PausableUpgradeable, Reentran
         _admin = admin;
 
         __Ownable_init();
-        //        __DefaultOperatorFilterer_init();
+        __DefaultOperatorFilterer_init();
         __ReentrancyGuard_init();
         __ERC721Pausable_init();
     }
@@ -59,7 +59,7 @@ contract MetaverseSpaceNFT is Initializable, ERC721PausableUpgradeable, Reentran
         return _metaverses[metaverseId]._metaverseZones[zoneIndex];
     }
 
-    function validateSpaceData(uint256 metaverseId, uint256 zoneIndex, uint256 spaceIndex, SharedStruct.SpaceInfo memory spaceData) internal returns (uint256) {
+    function validateSpaceData(uint256 metaverseId, uint256 zoneIndex, uint256 spaceIndex, SpaceData.SpaceInfo memory spaceData) internal returns (uint256) {
         uint256 _spaceId = (metaverseId * (10 ** 9) + zoneIndex) * (10 ** 9) + (spaceIndex + 1);
         if (_tokens[_spaceId]._init) {
             return 0;
@@ -72,7 +72,7 @@ contract MetaverseSpaceNFT is Initializable, ERC721PausableUpgradeable, Reentran
     // this func only can be called once. To extend metaverse, need to call function extendMetaverse
     function initMetaverse(uint256 metaverseId, address creator,
         SharedStruct.ZoneInfo memory zone,
-        SharedStruct.SpaceInfo[] memory spaceDatas) external {
+        SpaceData.SpaceInfo[] memory spaceDatas) external {
         // require init from template layout contract
         require(msg.sender == _metaverseLayoutAddr, Errors.INV_LAYOUT);
 
@@ -107,7 +107,7 @@ contract MetaverseSpaceNFT is Initializable, ERC721PausableUpgradeable, Reentran
     function extendMetaverse(
         uint256 metaverseId,
         SharedStruct.ZoneInfo memory zone,
-        SharedStruct.SpaceInfo[] memory spaceDatas)
+        SpaceData.SpaceInfo[] memory spaceDatas)
     external {
         // require init from template layout contract. Note: metaverse layout had to check msg.sender is owner of this metaverse
         require(msg.sender == _metaverseLayoutAddr, Errors.INV_LAYOUT);
@@ -134,8 +134,8 @@ contract MetaverseSpaceNFT is Initializable, ERC721PausableUpgradeable, Reentran
 
     }
 
-    // mint: mint a space as token
-    // 
+    /* @MINT: mint a space as token
+    */
     function paymentMintNFT(address _creator, address _feeToken, uint256 _fee) internal {
         if (_creator != msg.sender) {// not owner of project -> get payment
             // default 5% getting, 95% pay for owner of project
