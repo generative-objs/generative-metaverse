@@ -27,8 +27,8 @@ contract MetaverseSpaceNFT is Initializable, ERC721PausableUpgradeable, Reentran
     address public _paramsAddr;
     address public _metaverseLayoutAddr;
 
-    mapping(uint256 => Space.SpaceToken) public _tokens;
-    mapping(uint256 => Metaverse.MetaverseInfo) public _metaverses;
+    mapping(uint256 => Space.SpaceToken) public _spaceTokens;
+    mapping(uint256 => Space.MetaverseInfo) public _metaverses;
     mapping(address => mapping(uint256 => bool)) _minted;// marked erc-721 id
 
     function initialize(
@@ -36,13 +36,14 @@ contract MetaverseSpaceNFT is Initializable, ERC721PausableUpgradeable, Reentran
         string memory symbol,
         string memory baseUri,
         address admin,
-        address paramsAddress
+        address paramsAddress,
+        address layoutAddr
     ) initializer public {
-        require(admin != address(0), Errors.INV_ADD);
-        require(paramsAddress != address(0), Errors.INV_ADD);
+        require(admin != address(0) && paramsAddress != address(0) && layoutAddr != address(0), Errors.INV_ADD);
         __ERC721_init(name, symbol);
         _paramsAddr = paramsAddress;
         _admin = admin;
+        _metaverseLayoutAddr = layoutAddr;
 
         __Ownable_init();
         __DefaultOperatorFilterer_init();
@@ -58,20 +59,24 @@ contract MetaverseSpaceNFT is Initializable, ERC721PausableUpgradeable, Reentran
 
     // initMetaverse: init metaverse and had to call from metaverse layout contract
     // this func only can be called once. To extend metaverse, need to call function extendMetaverse
-    function initMetaverse(uint256 metaverseId, address creator,
-        Space.SpaceData[] memory spaceDatas
-    ) external {
+    function initMetaverse(uint256 metaverseId, Metaverse.MetaverseInfo memory metaverseInfo) external {
         // require init from template layout contract
         require(msg.sender == _metaverseLayoutAddr, Errors.INV_LAYOUT);
 
-        // loop for setting space info
-        //        _metaverses[metaverseId]._size = spaceDatas.length;
-        //        for (uint256 i = 0; i < spaceDatas.length; i++) {
-        //            uint256 spaceId = validateSpaceData(metaverseId, zone.zoneIndex, i, spaceDatas[i]);
-        //            require(spaceId > 0);
-        //            _tokens[spaceId]._spaceData = spaceDatas[i];
-        //        }
+        // clone data
+        _metaverses[metaverseId]._creator = metaverseInfo._creator;
+        _metaverses[metaverseId]._fee = metaverseInfo._fee;
+        _metaverses[metaverseId]._feeTokenAddr = metaverseInfo._feeTokenAddr;
+        _metaverses[metaverseId]._nftGated = metaverseInfo._zones[0]._collAddr;
 
+        // TODO: 
+        // loop for setting space info
+        /*        _metaverses[metaverseId]._size = spaceDatas.length;
+                for (uint256 i = 0; i < spaceDatas.length; i++) {
+                    uint256 spaceId = validateSpaceData(metaverseId, zone.zoneIndex, i, spaceDatas[i]);
+                    require(spaceId > 0);
+                    _tokens[spaceId]._spaceData = spaceDatas[i];
+                }*/
     }
 
     function extendMetaverse(
@@ -81,25 +86,15 @@ contract MetaverseSpaceNFT is Initializable, ERC721PausableUpgradeable, Reentran
         // require init from template layout contract. Note: metaverse layout had to check msg.sender is owner of this metaverse
         require(msg.sender == _metaverseLayoutAddr, Errors.INV_LAYOUT);
 
-        //        require(zone.typeZone > 0 && zone.zoneIndex > 0, Errors.INV_ZONE);
-        //        require(_metaverses[metaverseId]._creator != address(0), Errors.N_EXIST_METAVERSE);
-        //        if (_metaverses[metaverseId]._metaverseZones[2].typeZone == 2) {
-        //            require(zone.typeZone == 2 || zone.typeZone == 3, Errors.INV_ZONE);
-        //        } else if (_metaverses[metaverseId]._metaverseZones[2].typeZone == 3) {
-        //            require(zone.typeZone == 3, Errors.INV_ZONE);
-        //        }
-
-        // set zone
-        //        _metaverses[metaverseId]._metaverseZones[zone.zoneIndex] = zone;
         // loop for setting space info
-        //        uint256 currentSize = _metaverses[metaverseId]._size;
-        //        for (uint256 i = currentSize; i < spaceDatas.length + currentSize; i++) {
-        //            uint256 spaceId = validateSpaceData(metaverseId, zone.zoneIndex, i, spaceDatas[i - currentSize]);
-        //            require(spaceId > 0);
-        //            _tokens[spaceId]._spaceData = spaceDatas[i];
-        // update size of metaverse
-        //            _metaverses[metaverseId]._size += 1;
-        //        }
+        /*        uint256 currentSize = _metaverses[metaverseId]._size;
+                for (uint256 i = currentSize; i < spaceDatas.length + currentSize; i++) {
+                    uint256 spaceId = validateSpaceData(metaverseId, zone.zoneIndex, i, spaceDatas[i - currentSize]);
+                    require(spaceId > 0);
+                    _tokens[spaceId]._spaceData = spaceDatas[i];
+         update size of metaverse
+                    _metaverses[metaverseId]._size += 1;
+                }*/
 
     }
 
@@ -119,53 +114,72 @@ contract MetaverseSpaceNFT is Initializable, ERC721PausableUpgradeable, Reentran
                 require(msg.value >= _fee);
 
                 // pay for owner project
-                (bool success,) = _creator.call{value : _fee - (_fee * operationFee / 10000)}("");
+                (bool success,) = _creator.call{value : _fee - (_fee * operationFee / Metaverse.PERCENT_MIN)}("");
                 require(success);
                 // pay for host _boilerplateAddr
-                (success,) = _metaverseLayoutAddr.call{value : _fee * operationFee / 10000}("");
+                (success,) = _metaverseLayoutAddr.call{value : _fee * operationFee / Metaverse.PERCENT_MIN}("");
             } else {
                 IERC20Upgradeable tokenERC20 = IERC20Upgradeable(_feeToken);
                 // transfer all fee erc-20 token to this contract
-                require(tokenERC20.transferFrom(
-                        msg.sender,
-                        address(this),
-                        _fee
-                    ));
+                require(tokenERC20.transferFrom(msg.sender, address(this), _fee));
 
                 // pay for owner project
-                require(tokenERC20.transfer(_creator, _fee - (_fee * operationFee / 10000)));
+                require(tokenERC20.transfer(_creator, _fee - (_fee * operationFee / Metaverse.PERCENT_MIN)));
                 // pay for host _boilerplateAddr
-                require(tokenERC20.transfer(_creator, _fee * operationFee / 10000));
+                require(tokenERC20.transfer(_creator, _fee * operationFee / Metaverse.PERCENT_MIN));
             }
         }
     }
 
-    function mint(uint256 metaverseId, uint256 zoneIndex, uint256 spaceId, string memory uri, bytes memory data) external {
+    function mint(uint256 metaverseId, uint256 spaceId, string memory uri) external {
+        // verify metaverse
+        require(_metaverses[metaverseId]._creator != address(0x0), Errors.INV_ADD);
         // TODO verify spaceId
-        require(!_exists(spaceId), Errors.INV_SPACE_ID);
 
-        /*if (_metaverses[metaverseId]._metaverseZones[zoneIndex].collAddr != address(0)) {
-            // check nft holder
-            IERC721Upgradeable erc721 = IERC721Upgradeable(_metaverses[metaverseId]._metaverseZones[zoneIndex].collAddr);
-            // get token erc721 id from data
-            uint256 _erc721Id = Utils.sliceUint(data, 0);
-            // check owner token id
-            require(erc721.ownerOf(_erc721Id) == msg.sender, "N_O_721");
-            // check token not minted 
-            require(!_minted[_metaverses[metaverseId]._metaverseZones[zoneIndex].collAddr][_erc721Id], "M");
-            // marked this erc721 token id is minted ticket
-            _minted[_metaverses[metaverseId]._metaverseZones[zoneIndex].collAddr][_erc721Id] = true;
-        }*/
+        // payment
+        paymentMintNFT(_metaverses[metaverseId]._creator, _metaverses[metaverseId]._feeTokenAddr, _metaverses[metaverseId]._fee);
 
-        paymentMintNFT(address(0x0), address(0x0), 0);
-
-        _tokens[spaceId]._creator = _metaverses[metaverseId]._creator;
+        // create space data
+        _spaceTokens[spaceId]._metaverseId = metaverseId;
+        // and mint to token
         _safeMint(msg.sender, spaceId);
 
         if (bytes(uri).length > 0) {
-            _tokens[spaceId]._customUri = uri;
+            _spaceTokens[spaceId]._customUri = uri;
+        }
+    }
+
+    function mintByToken(uint256 metaverseId, uint256 spaceId, string memory uri, bytes memory data) external {
+        // verify metaverse
+        require(_metaverses[metaverseId]._creator != address(0x0), Errors.INV_ADD);
+
+        // TODO verify spaceId
+
+        // TODO for https://delegate.cash/
+        if (_metaverses[metaverseId]._nftGated != address(0)) {
+            // check nft holder
+            IERC721Upgradeable erc721 = IERC721Upgradeable(_metaverses[metaverseId]._nftGated);
+            // get token erc721 id from data
+            uint256 _erc721Id = Utils.sliceUint(data, 0);
+            // check owner token id
+            require(erc721.ownerOf(_erc721Id) == msg.sender, Errors.INV_ADD);
+            // check token not minted 
+            require(!_minted[_metaverses[metaverseId]._nftGated][_erc721Id], "M");
+            // marked this erc721 token id is minted ticket
+            _minted[_metaverses[metaverseId]._nftGated][_erc721Id] = true;
         }
 
+        // payment
+        paymentMintNFT(_metaverses[metaverseId]._creator, _metaverses[metaverseId]._feeTokenAddr, _metaverses[metaverseId]._fee);
+
+        // create space data
+        _spaceTokens[spaceId]._metaverseId = metaverseId;
+        // and mint to token
+        _safeMint(msg.sender, spaceId);
+
+        if (bytes(uri).length > 0) {
+            _spaceTokens[spaceId]._customUri = uri;
+        }
     }
 
     /* @URI: 
@@ -175,9 +189,9 @@ contract MetaverseSpaceNFT is Initializable, ERC721PausableUpgradeable, Reentran
     }
 
     function tokenURI(uint256 _tokenId) override public view returns (string memory) {
-        bytes memory customUriBytes = bytes(_tokens[_tokenId]._customUri);
+        bytes memory customUriBytes = bytes(_spaceTokens[_tokenId]._customUri);
         if (customUriBytes.length > 0) {
-            return _tokens[_tokenId]._customUri;
+            return _spaceTokens[_tokenId]._customUri;
         } else {
             return string(abi.encodePacked(baseTokenURI(), StringsUpgradeable.toString(_tokenId)));
         }
@@ -189,7 +203,7 @@ contract MetaverseSpaceNFT is Initializable, ERC721PausableUpgradeable, Reentran
     function royaltyInfo(uint256 _tokenId, uint256 _salePrice) external view override
     returns (address receiver, uint256 royaltyAmount)
     {
-        receiver = _tokens[_tokenId]._creator;
+        receiver = _metaverses[_spaceTokens[_tokenId]._metaverseId]._creator;
         royaltyAmount = (_salePrice * 500) / 10000;
     }
 

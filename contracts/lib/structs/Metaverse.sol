@@ -1,8 +1,7 @@
 pragma solidity ^0.8.0;
 
 library Metaverse {
-    uint256 constant NFTGATED = 1;
-    uint256 constant NONFTGATED = 2;
+    uint256 constant PERCENT_MIN = 10000;
 
     struct MetaverseInfo {
         uint256 _fee;
@@ -15,8 +14,8 @@ library Metaverse {
     }
 
     struct ZoneInfo {
-        address collAddr; // required for type=1
-        uint256 typeZone; //1: nft hodler, 2: public
+        address _collAddr;
+        uint256 _size;
     }
 
 }

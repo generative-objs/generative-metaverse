@@ -7,19 +7,25 @@ import "@openzeppelin/contracts-upgradeable/security/ReentrancyGuardUpgradeable.
 import "@openzeppelin/contracts-upgradeable/token/ERC20/IERC20Upgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 
+import "../lib/configurations/MetaverseLayoutNFTConfiguration.sol";
+
 import "../interfaces/IMetaverseLayoutNFT.sol";
-import "../lib/helpers/Errors.sol";
-import "../lib/helpers/Utils.sol";
-import "../lib/structs/Metaverse.sol";
 import "../interfaces/IMetaverseSpaceNFT.sol";
 import "../interfaces/IParameterControl.sol";
-import "../lib/configurations/MetaverseLayoutNFTConfiguration.sol";
-import "../operator-filter-registry/upgradeable/DefaultOperatorFiltererUpgradeable.sol";
-import "../lib/structs/Space.sol";
 import "../interfaces/ICallback.sol";
 
-contract MetaverseLayoutNFT is Initializable, ERC721PausableUpgradeable, ReentrancyGuardUpgradeable,
-OwnableUpgradeable, IMetaverseLayoutNFT, IERC2981Upgradeable, ICallback, DefaultOperatorFiltererUpgradeable {
+import "../lib/helpers/Errors.sol";
+import "../lib/helpers/Errors.sol";
+
+import "../operator-filter-registry/upgradeable/DefaultOperatorFiltererUpgradeable.sol";
+import "../lib/structs/Metaverse.sol";
+import "../lib/structs/Space.sol";
+
+
+contract MetaverseLayoutNFT is Initializable, ERC721PausableUpgradeable, ReentrancyGuardUpgradeable, OwnableUpgradeable,
+IMetaverseLayoutNFT, IERC2981Upgradeable, ICallback,
+DefaultOperatorFiltererUpgradeable
+{
     // admin feature
     address public _admin;
     address public _paramsAddr;
@@ -129,12 +135,12 @@ OwnableUpgradeable, IMetaverseLayoutNFT, IERC2981Upgradeable, ICallback, Default
 
         // check metaverse id
         require(_metaverses[metaverseId]._creator == address(0), Errors.EXIST_METAVERSE);
-        // check zone
-        require(zone.typeZone == Metaverse.NFTGATED || zone.typeZone == Metaverse.NONFTGATED, Errors.INV_ZONE);
         // check space collection
         require(spaceNFT != address(0), Errors.INV_ADD);
         IMetaverseSpaceNFT metaverseSpaceNFT = IMetaverseSpaceNFT(spaceNFT);
         require(address(metaverseSpaceNFT).code.length > 0);
+        // check zone
+        require(zone._size > 0);
 
         // init metaverse
         _metaverses[metaverseId]._creator = msg.sender;
@@ -142,17 +148,15 @@ OwnableUpgradeable, IMetaverseLayoutNFT, IERC2981Upgradeable, ICallback, Default
         _metaverses[metaverseId]._feeTokenAddr = feeToken;
         _metaverses[metaverseId]._algo = algo;
         _metaverses[metaverseId]._spaceAddr = spaceNFT;
-        if (zone.typeZone == Metaverse.NFTGATED) {
+        if (zone._collAddr != address(0x0)) {
             _metaverses[metaverseId]._creator = _admin;
-        } else if (zone.typeZone == Metaverse.NONFTGATED) {
-            _metaverses[metaverseId]._creator = msg.sender;
         } else {
-            _metaverses[metaverseId]._creator = _admin;
+            _metaverses[metaverseId]._creator = msg.sender;
         }
         _metaverses[metaverseId]._zones.push(zone);
         // send init to space collection
 
-        // TODO:     metaverseSpaceNFT.initMetaverse(metaverseId, _metaverses[metaverseId]._creator, zone, spaceDatas);
+        metaverseSpaceNFT.initMetaverse(metaverseId, _metaverses[metaverseId]);
         _safeMint(msg.sender, metaverseId);
     }
 
@@ -164,15 +168,17 @@ OwnableUpgradeable, IMetaverseLayoutNFT, IERC2981Upgradeable, ICallback, Default
         // check metaverse id
         require(_metaverses[metaverseId]._creator == address(0), Errors.EXIST_METAVERSE);
         // check zone
-        require(zone.typeZone == Metaverse.NFTGATED || zone.typeZone == Metaverse.NONFTGATED, Errors.INV_ZONE);
-        if (_metaverses[metaverseId]._zones[_metaverses[metaverseId]._zones.length - 1].typeZone == Metaverse.NONFTGATED) {
-            require(zone.typeZone == Metaverse.NONFTGATED, Errors.INV_ZONE);
+        require(zone._size > 0);
+        if (_metaverses[metaverseId]._zones[_metaverses[metaverseId]._zones.length - 1]._collAddr != address(0x0)) {
+            if (zone._collAddr != address(0x0)) {
+                require(zone._collAddr == _metaverses[metaverseId]._zones[_metaverses[metaverseId]._zones.length - 1]._collAddr, Errors.INV_ZONE);
+            }
         }
 
         _metaverses[metaverseId]._zones.push(zone);
         IMetaverseSpaceNFT metaverseNFT = IMetaverseSpaceNFT(_metaverses[metaverseId]._spaceAddr);
         // send extend to space collection
-        // TODO:       metaverseNFT.extendMetaverse(metaverseId, zone, spaceDatas);
+        metaverseNFT.extendMetaverse(metaverseId, zone);
     }
 
     function setAlgo(uint256 metaverseId, string memory metaverseAlgo) external {
