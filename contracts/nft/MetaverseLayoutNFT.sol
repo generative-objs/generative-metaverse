@@ -61,36 +61,35 @@ DefaultOperatorFiltererUpgradeable
         __ERC721Pausable_init();
     }
 
-    function changeAdmin(address newAdm) external {
+    modifier onlyAdmin() {
         require(msg.sender == _admin, Errors.ONLY_ADMIN_ALLOWED);
+        _;
+    }
 
+    function changeAdmin(address newAdm) external onlyAdmin {
+        require(newAdm != address(0x0), Errors.INV_ADD);
         address _previousAdmin = _admin;
         _admin = newAdm;
     }
 
-    function changeOperator(address newOperator) external {
-        require(msg.sender == _admin, Errors.ONLY_ADMIN_ALLOWED);
-
+    function changeOperator(address newOperator) external onlyAdmin {
+        require(newOperator != address(0x0), Errors.INV_ADD);
         address _pre = _operator;
         _operator = newOperator;
     }
 
-    function pause() external {
-        require(msg.sender == _admin, Errors.ONLY_ADMIN_ALLOWED);
+    function pause() external onlyAdmin {
         _pause();
     }
 
-    function unpause() external {
-        require(msg.sender == _admin, Errors.ONLY_ADMIN_ALLOWED);
+    function unpause() external onlyAdmin {
         _unpause();
     }
 
-    function withdraw(address erc20Addr, uint256 amount) external nonReentrant {
-        require(msg.sender == _admin, Errors.ONLY_ADMIN_ALLOWED);
-        bool success;
+    function withdraw(address erc20Addr, uint256 amount) external nonReentrant onlyAdmin {
         if (erc20Addr == address(0x0)) {
             require(address(this).balance >= amount);
-            (success,) = msg.sender.call{value : amount}("");
+            (bool success,) = msg.sender.call{value : amount}("");
             require(success);
         } else {
             IERC20Upgradeable tokenERC20 = IERC20Upgradeable(erc20Addr);
@@ -99,8 +98,7 @@ DefaultOperatorFiltererUpgradeable
         }
     }
 
-    function setAlgo(string memory algo) public {
-        require(msg.sender == _admin, Errors.ONLY_ADMIN_ALLOWED);
+    function setAlgo(string memory algo) public onlyAdmin {
         _algorithm = algo;
     }
 
@@ -122,8 +120,7 @@ DefaultOperatorFiltererUpgradeable
         return _uri;
     }
 
-    function changeBaseURI(string memory baseURI) public {
-        require(msg.sender == _admin, Errors.ONLY_ADMIN_ALLOWED);
+    function changeBaseURI(string memory baseURI) public onlyAdmin {
         _uri = baseURI;
     }
 
@@ -270,8 +267,7 @@ DefaultOperatorFiltererUpgradeable
     /* @Oracle:
     */
 
-    function changeOracle(address oracle) external {
-        require(msg.sender == _admin, Errors.ONLY_ADMIN_ALLOWED);
+    function changeOracle(address oracle) external onlyAdmin {
         require(oracle != address(0), Errors.INV_ADD);
         _oracleServiceAddr = oracle;
     }
