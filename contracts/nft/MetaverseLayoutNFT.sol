@@ -28,6 +28,7 @@ DefaultOperatorFiltererUpgradeable
 {
     // admin feature
     address public _admin;
+    address public _operator;
     address public _paramsAddr;
     address public _oracleServiceAddr;
     // base uri
@@ -35,7 +36,11 @@ DefaultOperatorFiltererUpgradeable
     // metaverse info 
     mapping(uint256 => Metaverse.MetaverseInfo) public _metaverses;
     // 1 metaverse only map with 1 nft collections -> add zone-2 always = this nft collection
-    mapping(address => bool) public _metaverseNftCollections;
+    mapping(address => bool) public _metaverseNftCollections; // TODO: how to mark on global
+
+
+    string public _algorithm;
+    uint256 public _counter;
 
     function initialize(
         string memory name,
@@ -48,6 +53,7 @@ DefaultOperatorFiltererUpgradeable
         __ERC721_init(name, symbol);
         _paramsAddr = paramsAddress;
         _admin = admin;
+        _operator = admin;
 
         __Ownable_init();
         __DefaultOperatorFilterer_init();
@@ -60,6 +66,13 @@ DefaultOperatorFiltererUpgradeable
 
         address _previousAdmin = _admin;
         _admin = newAdm;
+    }
+
+    function changeOperator(address newOperator) external {
+        require(msg.sender == _admin, Errors.ONLY_ADMIN_ALLOWED);
+
+        address _pre = _operator;
+        _operator = newOperator;
     }
 
     function pause() external {
@@ -86,8 +99,17 @@ DefaultOperatorFiltererUpgradeable
         }
     }
 
+    function setAlgo(string memory algo) public {
+        require(msg.sender == _admin, Errors.ONLY_ADMIN_ALLOWED);
+        _algorithm = algo;
+    }
+
     /* @TRAITS: Get data for render
     */
+    function seeding(uint256 seed, string memory trait) internal pure returns (uint256) {
+        return uint256(keccak256(abi.encodePacked(trait, StringsUpgradeable.toString(seed))));
+    }
+
     function getParameterValues(uint256 metaverseId) public view returns (uint256) {
         return 0;
     }
@@ -119,7 +141,7 @@ DefaultOperatorFiltererUpgradeable
     // create metaverse layout and init metaverse in MetaverseNFT
     */
     function paymentMint(Metaverse.ZoneInfo memory zone) internal {
-        if (msg.sender != _admin) {
+        if (msg.sender != _admin && msg.sender != _operator) {
             IParameterControl _p = IParameterControl(_paramsAddr);
             // at least require value 1ETH
             uint256 operationFee = _p.getUInt256(MetaverseLayoutNFTConfiguration.CREATE_METAVERSE_FEE);
@@ -140,13 +162,14 @@ DefaultOperatorFiltererUpgradeable
         }
     }
 
-    function mint(uint256 metaverseId,
-        address spaceNFT,
+    function mint(address spaceNFT,
         address feeToken,
         uint256 fee,
         string memory algo,
         Metaverse.ZoneInfo memory zone
     ) public nonReentrant payable {
+        _counter++;
+        uint256 metaverseId = _counter;
         // payment
         IParameterControl _p = IParameterControl(_paramsAddr);
         paymentMint(zone);
@@ -159,6 +182,7 @@ DefaultOperatorFiltererUpgradeable
         require(address(metaverseSpaceNFT).code.length > 0);
         // check zone
         require(zone._size > 0);
+        require(fee > 0);
 
         // init metaverse
         _metaverses[metaverseId]._creator = msg.sender;
@@ -167,7 +191,10 @@ DefaultOperatorFiltererUpgradeable
         _metaverses[metaverseId]._algo = algo;
         _metaverses[metaverseId]._spaceAddr = spaceNFT;
         if (zone._collAddr != address(0x0)) {
+            require(!_metaverseNftCollections[zone._collAddr], Errors.INV_ADD);
             _metaverses[metaverseId]._creator = _admin;
+            // marked nft-collection
+            _metaverseNftCollections[zone._collAddr] = true;
         } else {
             _metaverses[metaverseId]._creator = msg.sender;
         }
@@ -199,7 +226,7 @@ DefaultOperatorFiltererUpgradeable
         metaverseNFT.extendMetaverse(metaverseId, zone);
     }
 
-    function setAlgo(uint256 metaverseId, string memory metaverseAlgo) external {
+    function setAlgoMetaverse(uint256 metaverseId, string memory metaverseAlgo) external {
         require(msg.sender == _metaverses[metaverseId]._creator, Errors.INV_ADD);
         _metaverses[metaverseId]._algo = metaverseAlgo;
     }

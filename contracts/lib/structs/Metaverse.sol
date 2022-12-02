@@ -8,7 +8,7 @@ library Metaverse {
         address _feeTokenAddr;
         address _creator;
         address _spaceAddr;
-        string _algo;
+        string _algo; // metaverse algo for generative space
         string _customUri;
         ZoneInfo[] _zones;
     }
