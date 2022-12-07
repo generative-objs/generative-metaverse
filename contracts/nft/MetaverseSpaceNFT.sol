@@ -126,7 +126,13 @@ DefaultOperatorFiltererUpgradeable {
 
     /* @TRAITS: Get data for render
     */
-    function getParameterValues(uint256 metaverseId) public view returns (uint256) {
+    function seeding(uint256 seed1, uint256 seed2, string memory trait) internal pure returns (uint256) {
+        return uint256(keccak256(abi.encodePacked(trait, StringsUpgradeable.toString(seed1), StringsUpgradeable.toString(seed2))));
+    }
+
+    function getParameterValues(uint256 spaceId) public view returns (uint256) {
+        // TODO: seed = spaceId + metaverseId
+        uint256 seed = seeding(spaceId, _spaceTokens[spaceId]._metaverseId, "");
         return 0;
     }
 

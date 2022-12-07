@@ -20,6 +20,7 @@ import "../lib/helpers/Errors.sol";
 import "../operator-filter-registry/upgradeable/DefaultOperatorFiltererUpgradeable.sol";
 import "../lib/structs/Metaverse.sol";
 import "../lib/structs/Space.sol";
+import "../interfaces/IGalaxyData.sol";
 
 
 contract MetaverseLayoutNFT is Initializable, ERC721PausableUpgradeable, ReentrancyGuardUpgradeable, OwnableUpgradeable,
@@ -108,8 +109,17 @@ DefaultOperatorFiltererUpgradeable
         return uint256(keccak256(abi.encodePacked(trait, StringsUpgradeable.toString(seed))));
     }
 
-    function getParameterValues(uint256 metaverseId) public view returns (uint256) {
-        return 0;
+
+    function getParameterValues(uint256 metaverseId) public view returns (bytes[] memory traitNames, bytes[] memory traitsValues) {
+        IGalaxyData data = IGalaxyData(address(0));
+
+        traitNames = data.getTraitsName();
+        bytes[][] memory traits = data.getAvailableTraits();
+        for (uint256 i = 0; i < traitNames.length; i++) {
+            traitsValues[i] = traits[i][seeding(metaverseId, string(traitNames[i])) % traits[i].length];
+        }
+
+        return (traitNames, traitsValues);
     }
 
 
