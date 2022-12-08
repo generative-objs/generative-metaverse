@@ -113,8 +113,8 @@ DefaultOperatorFiltererUpgradeable
     function getParameterValues(uint256 metaverseId) public view returns (bytes[] memory traitNames, bytes[] memory traitsValues) {
         IGalaxyData data = IGalaxyData(address(0));
 
-        traitNames = data.getTraitsName();
-        bytes[][] memory traits = data.getAvailableTraits();
+        traitNames = data.getTraits();
+        bytes[][] memory traits = data.getTraitsAvailableValues();
         for (uint256 i = 0; i < traitNames.length; i++) {
             traitsValues[i] = traits[i][seeding(metaverseId, string(traitNames[i])) % traits[i].length];
         }
