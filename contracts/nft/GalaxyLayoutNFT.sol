@@ -9,8 +9,8 @@ import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 
 import "../lib/configurations/MetaverseLayoutNFTConfiguration.sol";
 
-import "../interfaces/IMetaverseLayoutNFT.sol";
-import "../interfaces/IMetaverseSpaceNFT.sol";
+import "../interfaces/IGalaxyLayoutNFT.sol";
+import "../interfaces/IGalaxyMatterNFT.sol";
 import "../interfaces/IParameterControl.sol";
 import "../interfaces/ICallback.sol";
 
@@ -18,13 +18,13 @@ import "../lib/helpers/Errors.sol";
 import "../lib/helpers/Errors.sol";
 
 import "../operator-filter-registry/upgradeable/DefaultOperatorFiltererUpgradeable.sol";
-import "../lib/structs/Metaverse.sol";
+import "../lib/structs/Galaxy.sol";
 import "../lib/structs/Space.sol";
 import "../interfaces/IGalaxyData.sol";
 
 
-contract MetaverseLayoutNFT is Initializable, ERC721PausableUpgradeable, ReentrancyGuardUpgradeable, OwnableUpgradeable,
-IMetaverseLayoutNFT, IERC2981Upgradeable, ICallback,
+contract GalaxyLayoutNFT is Initializable, ERC721PausableUpgradeable, ReentrancyGuardUpgradeable, OwnableUpgradeable,
+IGalaxyLayoutNFT, IERC2981Upgradeable, ICallback,
 DefaultOperatorFiltererUpgradeable
 {
     // admin feature
@@ -35,7 +35,7 @@ DefaultOperatorFiltererUpgradeable
     // base uri
     string public _uri;
     // metaverse info 
-    mapping(uint256 => Metaverse.MetaverseInfo) public _metaverses;
+    mapping(uint256 => Galaxy.GalaxyTokenInfo) public _metaverses;
     // 1 metaverse only map with 1 nft collections -> add zone-2 always = this nft collection
     mapping(address => bool) public _metaverseNftCollections; // TODO: how to mark on global
 
@@ -147,7 +147,7 @@ DefaultOperatorFiltererUpgradeable
     /* @MINT : Mint / Init metaverse
     // create metaverse layout and init metaverse in MetaverseNFT
     */
-    function paymentMint(Metaverse.ZoneInfo memory zone) internal {
+    function paymentMint(Galaxy.ZoneInfo memory zone) internal {
         if (msg.sender != _admin && msg.sender != _operator) {
             IParameterControl _p = IParameterControl(_paramsAddr);
             // at least require value 1ETH
@@ -173,7 +173,7 @@ DefaultOperatorFiltererUpgradeable
         address feeToken,
         uint256 fee,
         string memory algo,
-        Metaverse.ZoneInfo memory zone
+        Galaxy.ZoneInfo memory zone
     ) public nonReentrant payable {
         _counter++;
         uint256 metaverseId = _counter;
@@ -185,7 +185,7 @@ DefaultOperatorFiltererUpgradeable
         require(_metaverses[metaverseId]._creator == address(0), Errors.EXIST_METAVERSE);
         // check space collection
         require(spaceNFT != address(0), Errors.INV_ADD);
-        IMetaverseSpaceNFT metaverseSpaceNFT = IMetaverseSpaceNFT(spaceNFT);
+        IGalaxyMatterNFT metaverseSpaceNFT = IGalaxyMatterNFT(spaceNFT);
         require(address(metaverseSpaceNFT).code.length > 0);
         // check zone
         require(zone._size > 0);
@@ -214,7 +214,7 @@ DefaultOperatorFiltererUpgradeable
 
     function extendMetaverse(
         uint256 metaverseId,
-        Metaverse.ZoneInfo memory zone
+        Galaxy.ZoneInfo memory zone
     ) external {
         require(msg.sender == ownerOf(metaverseId), Errors.INV_ADD);
         // check metaverse id
@@ -228,7 +228,7 @@ DefaultOperatorFiltererUpgradeable
         }
 
         _metaverses[metaverseId]._zones.push(zone);
-        IMetaverseSpaceNFT metaverseNFT = IMetaverseSpaceNFT(_metaverses[metaverseId]._spaceAddr);
+        IGalaxyMatterNFT metaverseNFT = IGalaxyMatterNFT(_metaverses[metaverseId]._spaceAddr);
         // send extend to space collection
         metaverseNFT.extendMetaverse(metaverseId, zone);
     }
@@ -251,7 +251,7 @@ DefaultOperatorFiltererUpgradeable
     returns (address receiver, uint256 royaltyAmount)
     {
         receiver = _metaverses[_tokenId]._creator;
-        royaltyAmount = (_salePrice * 500) / Metaverse.PERCENT_MIN;
+        royaltyAmount = (_salePrice * 500) / Galaxy.PERCENT_MIN;
     }
 
 

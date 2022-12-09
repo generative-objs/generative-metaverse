@@ -1,19 +1,26 @@
 pragma solidity ^0.8.0;
 
 import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
-import "../lib/structs/Metaverse.sol";
+import "@openzeppelin/contracts-upgradeable/utils/StringsUpgradeable.sol";
+import "../lib/structs/Galaxy.sol";
 import "../lib/helpers/Errors.sol";
+import "../lib/helpers/Base64.sol";
 import "../interfaces/IGalaxyData.sol";
+import "../interfaces/IParameterControl.sol";
 
 contract GalaxyData is OwnableUpgradeable, IGalaxyData {
     address public _admin;
+    address public _paramAddr;
 
     mapping(bytes => bytes[]) public _traitsAvailableValues;
     bytes[] public _traits = [bytes("T1"), "T2", "T3"];
 
-    function initialize(address admin) initializer public {
+    function initialize(address admin, address paramAddr) initializer public {
         _admin = admin;
+        _paramAddr = paramAddr;
+
         __Ownable_init();
+
         // TODO
         // init trait 0
         _traitsAvailableValues[_traits[0]] = new bytes[](5);
@@ -71,5 +78,36 @@ contract GalaxyData is OwnableUpgradeable, IGalaxyData {
             result[i] = _traitsAvailableValues[_traits[i]];
         }
         return result;
+    }
+
+    function tokenURI(uint256 seed) external view returns (string memory result) {
+        result = string(
+            abi.encodePacked('data:application/json;base64,',
+            Base64.encode(abi.encodePacked(''))
+            )
+        );
+    }
+
+    function tokenHTML(uint256 seed) external view returns (string memory result) {
+        IParameterControl param = IParameterControl(_paramAddr);
+        result = string(abi.encodePacked("<html><head><meta charset='UTF-8'><style>html,body,svg{margin:0;padding:0; height:100%;text-align:center;}</style>",
+            param.get("three.js"), // load threejs lib here
+            "<script>let seed = ", StringsUpgradeable.toString(seed), ";</script></head><body>",
+            "<div id='container-el'></div>",
+            "<script>//TODO running script</script>",
+            "</body></html>"
+            ));
+    }
+
+    function tokenTraits(uint256 seed) external view returns (string memory result) {
+        // TODO with seed
+        string memory traits = "";
+        for (uint256 i = 0; i < _traits.length; i++) {
+            traits = string(abi.encodePacked(traits, '{"trait_type":"', _traits[i], '","value":"', _traits[i][0], '"}'));
+            if (i < _traits.length - 1) {
+                traits = string(abi.encodePacked(traits, ','));
+            }
+        }
+        result = string(abi.encodePacked('"attributes":[', traits, ']'));
     }
 }

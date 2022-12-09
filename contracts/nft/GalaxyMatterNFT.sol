@@ -10,15 +10,15 @@ import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import "../lib/helpers/Errors.sol";
 import "../lib/helpers/Utils.sol";
 import "../lib/configurations/MetaverseLayoutNFTConfiguration.sol";
-import "../interfaces/IMetaverseLayoutNFT.sol";
+import "../interfaces/IGalaxyLayoutNFT.sol";
 import "../interfaces/IParameterControl.sol";
-import "../interfaces/IMetaverseSpaceNFT.sol";
+import "../interfaces/IGalaxyMatterNFT.sol";
 import "../operator-filter-registry/upgradeable/DefaultOperatorFiltererUpgradeable.sol";
 import "../lib/structs/Space.sol";
-import "../lib/structs/Metaverse.sol";
+import "../lib/structs/Galaxy.sol";
 
-contract MetaverseSpaceNFT is Initializable, ERC721PausableUpgradeable, ReentrancyGuardUpgradeable, OwnableUpgradeable,
-IERC2981Upgradeable, IMetaverseSpaceNFT,
+contract GalaxyMatterNFT is Initializable, ERC721PausableUpgradeable, ReentrancyGuardUpgradeable, OwnableUpgradeable,
+IERC2981Upgradeable, IGalaxyMatterNFT,
 DefaultOperatorFiltererUpgradeable {
     // admin feature
     address public _admin;
@@ -69,7 +69,7 @@ DefaultOperatorFiltererUpgradeable {
 
     // initMetaverse: init metaverse and had to call from metaverse layout contract
     // this func only can be called once. To extend metaverse, need to call function extendMetaverse
-    function initMetaverse(uint256 metaverseId, Metaverse.MetaverseInfo memory metaverseInfo) external {
+    function initMetaverse(uint256 metaverseId, Galaxy.GalaxyTokenInfo memory metaverseInfo) external {
         // require init from template layout contract
         require(msg.sender == _metaverseLayoutAddr, Errors.INV_LAYOUT);
 
@@ -91,7 +91,7 @@ DefaultOperatorFiltererUpgradeable {
 
     function extendMetaverse(
         uint256 metaverseId,
-        Metaverse.ZoneInfo memory zone)
+        Galaxy.ZoneInfo memory zone)
     external {
         // require init from template layout contract. Note: metaverse layout had to check msg.sender is owner of this metaverse
         require(msg.sender == _metaverseLayoutAddr, Errors.INV_LAYOUT);
@@ -150,19 +150,19 @@ DefaultOperatorFiltererUpgradeable {
                 require(msg.value >= _fee);
 
                 // pay for owner project
-                (bool success,) = _creator.call{value : _fee - (_fee * operationFee / Metaverse.PERCENT_MIN)}("");
+                (bool success,) = _creator.call{value : _fee - (_fee * operationFee / Galaxy.PERCENT_MIN)}("");
                 require(success);
                 // pay for host metaverse parent
-                (success,) = _metaverseLayoutAddr.call{value : _fee * operationFee / Metaverse.PERCENT_MIN}("");
+                (success,) = _metaverseLayoutAddr.call{value : _fee * operationFee / Galaxy.PERCENT_MIN}("");
             } else {
                 IERC20Upgradeable tokenERC20 = IERC20Upgradeable(_feeToken);
                 // transfer all fee erc-20 token to this contract
                 require(tokenERC20.transferFrom(msg.sender, address(this), _fee));
 
                 // pay for owner project
-                require(tokenERC20.transfer(_creator, _fee - (_fee * operationFee / Metaverse.PERCENT_MIN)));
+                require(tokenERC20.transfer(_creator, _fee - (_fee * operationFee / Galaxy.PERCENT_MIN)));
                 // pay for host metaverse parent
-                require(tokenERC20.transfer(_metaverseLayoutAddr, _fee * operationFee / Metaverse.PERCENT_MIN));
+                require(tokenERC20.transfer(_metaverseLayoutAddr, _fee * operationFee / Galaxy.PERCENT_MIN));
             }
         }
     }
@@ -225,7 +225,7 @@ DefaultOperatorFiltererUpgradeable {
     returns (address receiver, uint256 royaltyAmount)
     {
         receiver = _metaverses[_spaceTokens[_tokenId]._metaverseId]._creator;
-        royaltyAmount = (_salePrice * 500) / Metaverse.PERCENT_MIN;
+        royaltyAmount = (_salePrice * 500) / Galaxy.PERCENT_MIN;
     }
 
     /* @notice: EIP2981 royalties implementation. 
