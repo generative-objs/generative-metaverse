@@ -13,7 +13,7 @@ contract GalaxyData is OwnableUpgradeable, IGalaxyData {
     address public _paramAddr;
 
     mapping(bytes => bytes[]) public _traitsAvailableValues;
-    bytes[] public _traits = [bytes("T1"), "T2", "T3"];
+    bytes[] public _traits;
 
     function initialize(address admin, address paramAddr) initializer public {
         _admin = admin;
@@ -21,6 +21,7 @@ contract GalaxyData is OwnableUpgradeable, IGalaxyData {
 
         __Ownable_init();
 
+        _traits = [bytes("T1"), "T2", "T3"];
         // TODO
         // init trait 0
         _traitsAvailableValues[_traits[0]] = new bytes[](5);
@@ -81,14 +82,28 @@ contract GalaxyData is OwnableUpgradeable, IGalaxyData {
     }
 
     function tokenURI(uint256 seed) external view returns (string memory result) {
+        // TODO with seed
+        Galaxy.GalaxyURIContext memory ctx;
+        ctx.animationURI = string(abi.encodePacked(
+                ', "animation_url":"data:text/html;charset=utf-8,',
+                this.tokenHTML(seed),
+                '"'
+            ));
         result = string(
             abi.encodePacked('data:application/json;base64,',
-            Base64.encode(abi.encodePacked(''))
+            Base64.encode(abi.encodePacked(
+                '{"name":"', ctx.name,
+                '","description":"Powers by generative.xyz"',
+                ctx.animationURI,
+                tokenTraits(seed),
+                '}'
+            ))
             )
         );
     }
 
     function tokenHTML(uint256 seed) external view returns (string memory result) {
+        // TODO with seed
         IParameterControl param = IParameterControl(_paramAddr);
         result = string(abi.encodePacked("<html><head><meta charset='UTF-8'><style>html,body,svg{margin:0;padding:0; height:100%;text-align:center;}</style>",
             param.get("three.js"), // load threejs lib here
@@ -99,7 +114,7 @@ contract GalaxyData is OwnableUpgradeable, IGalaxyData {
             ));
     }
 
-    function tokenTraits(uint256 seed) external view returns (string memory result) {
+    function tokenTraits(uint256 seed) internal view returns (string memory result) {
         // TODO with seed
         string memory traits = "";
         for (uint256 i = 0; i < _traits.length; i++) {
